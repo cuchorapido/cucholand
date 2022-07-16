@@ -11,12 +11,6 @@ module "minecraft" {
   namespace   = "cuchorapido"
   environment = "prod"
 
-  # vpc_id    = "vpc-01b84c68"
-  # subnet_id = "subnet-58c83531"
-
-  # bucket_name = "cuchorapid-cucholand-1"
-
-  # ami      = "ami-0d6621c01e8c2de2c"
   key_name = "cuchorapido-cucholand"
 
   mc_port        = 30000
