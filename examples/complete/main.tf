@@ -11,11 +11,11 @@ module "minecraft" {
   namespace   = "cuchorapido"
   environment = "prod"
 
-  key_name = "cuchorapido-cucholand"
+  #key_name = "cuchorapido-cucholand"
 
   mc_port        = 30000
   mc_root        = "/home/mc"
-  mc_version     = "1.18.2"
+  mc_version     = "latest"
   mc_backup_freq = 10
 
   java_ms_mem = "1G"

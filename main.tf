@@ -5,15 +5,18 @@ data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnet_ids" "default" {
-  vpc_id = local.vpc_id
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
 }
 
 data "aws_caller_identity" "aws" {}
 
 locals {
   vpc_id    = length(var.vpc_id) > 0 ? var.vpc_id : data.aws_vpc.default.id
-  subnet_id = length(var.subnet_id) > 0 ? var.subnet_id : sort(data.aws_subnet_ids.default.ids)[0]
+  subnet_id = length(var.subnet_id) > 0 ? var.subnet_id : sort(data.aws_subnets.default.ids)[0]
   tf_tags = {
     Terraform = true,
     By        = data.aws_caller_identity.aws.arn
@@ -49,7 +52,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
 
   filter {
@@ -167,28 +170,37 @@ data "template_file" "user_data" {
 }
 
 // Security group for our instance - allows SSH and minecraft 
-module "ec2_security_group" {
-  source = "git@github.com:terraform-aws-modules/terraform-aws-security-group.git?ref=master"
-
+resource "aws_security_group" "this" {
   name        = "${var.name}-ec2"
   description = "Allow SSH and TCP ${var.mc_port}"
   vpc_id      = local.vpc_id
 
-  ingress_cidr_blocks      = [ var.allowed_cidrs ]
-  ingress_rules            = [ "ssh-tcp"]
-  ingress_with_cidr_blocks = [
-    {
-      from_port   = var.mc_port
-      to_port     = var.mc_port
-      protocol    = "tcp"
-      description = "Minecraft server"
-      cidr_blocks = var.allowed_cidrs
-    },
-  ]
-  egress_rules = ["all-all"]
+  ingress {
+    description      = "ssh-tcp"
+    from_port        = 22
+    to_port          = 22
+    protocol         = "tcp"
+    cidr_blocks      = [ var.allowed_cidrs ]
+  }
+  ingress {
+    description      = "minecraft-server"
+    from_port        = var.mc_port
+    to_port          = var.mc_port
+    protocol         = "tcp"
+    cidr_blocks      = [ var.allowed_cidrs ]
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
 
   tags = module.label.tags
 }
+
 
 // Create EC2 ssh key pair
 resource "tls_private_key" "ec2_ssh" {
@@ -223,7 +235,7 @@ module "ec2_minecraft" {
 
   # network
   subnet_id                   = local.subnet_id
-  vpc_security_group_ids      = [ module.ec2_security_group.this_security_group_id ]
+  vpc_security_group_ids      = [ aws_security_group.this.id ]
   associate_public_ip_address = var.associate_public_ip_address
 
   tags = module.label.tags
