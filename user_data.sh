@@ -3,7 +3,8 @@
 # Install, configure and start a new Minecraft server
 # This supports Ubuntu and Amazon Linux 2 flavors of Linux (maybe/probably others but not tested).
 
-set -e
+#exec > >(tee /var/log/tf-user-data.log|logger -t user-data) 2>&1
+set -x
 
 # Determine linux distro
 if [ -f /etc/os-release ]; then
@@ -11,15 +12,18 @@ if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS=$NAME
     VER=$VERSION_ID
+
 elif type lsb_release >/dev/null 2>&1; then
     # linuxbase.org
     OS=$(lsb_release -si)
     VER=$(lsb_release -sr)
+
 elif [ -f /etc/lsb-release ]; then
     # For some versions of Debian/Ubuntu without lsb_release command
     . /etc/lsb-release
     OS=$DISTRIB_ID
     VER=$DISTRIB_RELEASE
+
 elif [ -f /etc/debian_version ]; then
     # Older Debian/Ubuntu/etc.
     OS=Debian
@@ -41,7 +45,7 @@ ubuntu_linux_setup() {
   export SSH_USER="ubuntu"
   export DEBIAN_FRONTEND=noninteractive
   /usr/bin/apt-get update
-  /usr/bin/apt-get -yq install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" default-jre wget awscli jq
+  /usr/bin/apt-get -yq install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" default-jre wget awscli jq curl git 
   /bin/cat <<"__UPG__" > /etc/apt/apt.conf.d/10periodic
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Download-Upgradeable-Packages "1";
@@ -50,17 +54,17 @@ APT::Periodic::Unattended-Upgrade "1";
 __UPG__
 
   # Init script for starting, stopping
-  cat <<INIT > /etc/init.d/minecraft
+echo '
 #!/bin/bash
 # Short-Description: Minecraft server
 
 start() {
-  echo "Starting minecraft server from /home/minecraft..."
+  echo "comenzar el servidor de minecraft /home/mc..."
   start-stop-daemon --start --quiet  --pidfile ${mc_root}/minecraft.pid -m -b -c $SSH_USER -d ${mc_root} --exec /usr/bin/java -- -Xmx${java_mx_mem} -Xms${java_ms_mem} -jar $MINECRAFT_JAR nogui
 }
 
 stop() {
-  echo "Stopping minecraft server..."
+  echo "Parar servidor de minecraft..."
   start-stop-daemon --stop --pidfile ${mc_root}/minecraft.pid
 }
 
@@ -78,7 +82,7 @@ case \$1 in
     ;;
 esac
 exit 0
-INIT
+' | tee -a /etc/init.d/minecraft
 
   # Start up on reboot
   /bin/chmod +x /etc/init.d/minecraft
@@ -136,11 +140,13 @@ download_minecraft_server() {
   # Index version_manifest.json by the version number and extract URL for the specific version manifest
   VERSIONS_URL=$(jq -r '.["versions"][] | select(.id == "'"$MC_VERS"'") | .url' ${mc_root}/version_manifest.json)
   # From specific version manifest extract the server JAR URL
-  SERVER_URL=https://launchermeta.mojang.com/v1/packages/f1cf44b0fb6fe11910bac139617b72bf3ef330b9/1.18.2.json
+  SERVER_URL=https://launcher.mojang.com/v1/objects/c8f83c5655308435b3dcf03c06d9fe8740a77469/server.jar
+  #https://launchermeta.mojang.com/v1/packages/f1cf44b0fb6fe11910bac139617b72bf3ef330b9/1.18.2.json
   #$(curl -s $VERSIONS_URL | jq -r '.downloads | .server | .url')
   # And finally download it to our local MC dir
   $WGET -O ${mc_root}/$MINECRAFT_JAR $SERVER_URL
-
+  
+  #mc_root=/home/mc
 }
 
 MINECRAFT_JAR="minecraft_server.jar"
@@ -163,10 +169,12 @@ esac
 # Download server if it doesn't exist on S3 already (existing from previous install)
 # To force a new server version, remove the server JAR from S3 bucket
 if [[ ! -e "${mc_root}/$MINECRAFT_JAR" ]]; then
+  echo [INFO] A punto de descargar minecraft....
   download_minecraft_server
+  echo [INFO] Listo, ya termino esta chimbada...
 fi
 
-# Cron job to sync data to S3 every five mins
+# Cron job to sync data to S3 every ten mins
 /bin/cat <<CRON > /etc/cron.d/minecraft
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:${mc_root}

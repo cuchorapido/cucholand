@@ -53,7 +53,8 @@ download_minecraft_server() {
   # Index version_manifest.json by the version number and extract URL for the specific version manifest
   VERSIONS_URL=$(jq -r '.["versions"][] | select(.id == "'"$MC_VERS"'") | .url' ${mc_root}/version_manifest.json)
   # From specific version manifest extract the server JAR URL
-  SERVER_URL=$(curl -s $VERSIONS_URL | jq -r '.downloads | .server | .url')
+  SERVER_URL=https://launcher.mojang.com/v1/objects/c8f83c5655308435b3dcf03c06d9fe8740a77469/server.jar
+  #$(curl -s $VERSIONS_URL | jq -r '.downloads | .server | .url')
   # And finally download it to our local MC dir
   $WGET -O ${mc_root}/$MINECRAFT_JAR $SERVER_URL
 

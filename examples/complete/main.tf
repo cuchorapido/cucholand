@@ -10,7 +10,7 @@ module "minecraft" {
   name        = "cucholand"
   namespace   = "cuchorapido"
   environment = "prod"
-
+  bucket_object_versioning = false
   #key_name = "cuchorapido-cucholand"
 
   mc_port        = 30000
