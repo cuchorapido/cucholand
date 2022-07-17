@@ -7,20 +7,20 @@ provider "aws" {
 module "minecraft" {
   source = "../../"
 
-  name        = "cucholand"
-  namespace   = "cuchorapido"
-  environment = "prod"
+  name                     = "cucholand"
+  namespace                = "cuchorapido"
+  environment              = "prod"
   bucket_object_versioning = false
-  #key_name = "cuchorapido-cucholand"
+  instance_type            = "t2.xlarge"
 
-  mc_port        = 30000
-  mc_root        = "/home/mc"
-  mc_version     = "latest"
-  mc_backup_freq = 10
+  mc_port                  = 25565
+  mc_root                  = "/home/mc"
+  mc_version               = "1.18.2"
+  mc_backup_freq           = 10
 
-  java_ms_mem = "1G"
-  java_mx_mem = "1G"
+  java_ms_mem              = "4G"
+  java_mx_mem              = "8G"
 
 
-  tags = { By = "lxhxr" }
+  tags                     = { By = "lxhxr" }
 }
