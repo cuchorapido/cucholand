@@ -18,3 +18,7 @@ output "minecraft_server" {
   value = module.minecraft.minecraft_server
 }
 
+output "s3" {
+  value = module.minecraft.s3
+}
+

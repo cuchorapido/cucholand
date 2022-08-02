@@ -52,3 +52,9 @@ output "ec2_instance_profile" {
 output "minecraft_server" {
   value = "${module.ec2_minecraft.public_ip}:${var.mc_port}"
 }
+
+
+
+output "s3" {
+  value = "${module.s3}"
+}

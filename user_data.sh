@@ -45,7 +45,7 @@ ubuntu_linux_setup() {
   export SSH_USER="ubuntu"
   export DEBIAN_FRONTEND=noninteractive
   /usr/bin/apt-get update
-  /usr/bin/apt-get -yq install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" default-jre wget awscli jq curl git 
+  /usr/bin/apt-get -yq install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" openjdk-18-jre wget awscli jq curl git glances
   /bin/cat <<"__UPG__" > /etc/apt/apt.conf.d/10periodic
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Download-Upgradeable-Packages "1";
@@ -203,3 +203,14 @@ esac
 
 exit 0
 
+
+
+
+# TODO: 
+# automaticamente cuadrar el online-mode a false en los server.properties en /home/mc
+# hacer que arranque automaticamente el servicio de mc en vez de hacerlo manual
+# poner una ip estatica del server
+# agregale un hostname al ip del server ex. cucholand.lxhxr.com
+# allow-flight=true en el server.properties
+# difficulty=hard (de easy) en el server.properties
+# poner whitelist para los activetes
