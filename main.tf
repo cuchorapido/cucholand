@@ -75,6 +75,8 @@ resource "random_string" "s3" {
 #}
 
 locals {
+  availability_zone = "${local.region}a"
+  region            = "us-east-2"
   using_existing_bucket = signum(length(var.bucket_name)) == 1
 
   bucket = length(var.bucket_name) > 0 ? var.bucket_name : "${module.label.id}-${random_string.s3.result}"
@@ -138,7 +140,11 @@ resource "aws_iam_role_policy" "mc_allow_ec2_to_s3" {
     {
       "Effect": "Allow",
       "Action": ["s3:ListBucket"],
-      "Resource": ["arn:aws:s3:::${local.bucket}"]
+      "Resource": [
+        "arn:aws:s3:::${local.bucket}",
+        "arn:aws:s3:::cuchorapido"
+
+      ]
     },
     {
       "Effect": "Allow",
@@ -147,27 +153,42 @@ resource "aws_iam_role_policy" "mc_allow_ec2_to_s3" {
         "s3:GetObject",
         "s3:DeleteObject"
       ],
-      "Resource": ["arn:aws:s3:::${local.bucket}/*"]
+      "Resource": [
+        "arn:aws:s3:::${local.bucket}/*",
+        "arn:aws:s3:::cuchorapido/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAddress",
+       "ec2:AssociateAddress",
+       "ec2:DescribeInstance",
+       "ec2:AllocateAddress"
+      ],
+      "Resource": [
+        "*"
+      ]
     }
   ]
 }
 EOF
 }
 
-// Script to configure the server - this is where most of the magic occurs!
-data "template_file" "user_data" {
-  template = file("${path.module}/user_data.sh")
+# // Script to configure the server - this is where most of the magic occurs!
+# data "template_file" "user_data" {
+#   template = file("${path.module}/user_data_bungecord.sh")
 
-  vars = {
-    mc_root        = var.mc_root
-    mc_bucket      = local.bucket
-    mc_backup_freq = var.mc_backup_freq
-    mc_version     = var.mc_version
-    mc_type        = var.mc_type   
-    java_mx_mem    = var.java_mx_mem
-    java_ms_mem    = var.java_ms_mem
-  }
-}
+#   vars = {
+#     mc_root        = var.mc_root
+#     mc_bucket      = local.bucket
+#     mc_backup_freq = var.mc_backup_freq
+#     mc_version     = var.mc_version
+#     mc_type        = var.mc_type   
+#     java_mx_mem    = var.java_mx_mem
+#     java_ms_mem    = var.java_ms_mem
+#   }
+# }
 
 // Security group for our instance - allows SSH and minecraft 
 resource "aws_security_group" "this" {
@@ -221,23 +242,107 @@ locals {
   _ssh_key_name = length(var.key_name) > 0 ? var.key_name : aws_key_pair.ec2_ssh[0].key_name
 }
 
-// EC2 instance for the server - tune instance_type to fit your performance and budget requirements
-module "ec2_minecraft" {
-  source = "git::https://github.com/terraform-aws-modules/terraform-aws-ec2-instance.git?ref=master"
-  name   = "${var.name}-public"
+# // EC2 instance for the server - tune instance_type to fit your performance and budget requirements
+# module "ec2_minecraft" {
+#   source = "git::https://github.com/terraform-aws-modules/terraform-aws-ec2-instance.git?ref=master"
+#   name   = "${var.name}-public"
 
-  # instance
-  key_name             = local._ssh_key_name
-  ami                  = var.ami != "" ? var.ami : data.aws_ami.ubuntu.image_id
-  instance_type        = var.instance_type
-  iam_instance_profile = aws_iam_instance_profile.mc.id
-  user_data            = data.template_file.user_data.rendered
+#   # instance
+#   key_name             = local._ssh_key_name
+#   ami                  = var.ami != "" ? var.ami : data.aws_ami.ubuntu.image_id
+#   instance_type        = var.instance_type
+#   iam_instance_profile = aws_iam_instance_profile.mc.id
+#   user_data            = data.template_file.user_data.rendered
 
-  # network
-  subnet_id                   = local.subnet_id
-  vpc_security_group_ids      = [ aws_security_group.this.id ]
-  associate_public_ip_address = var.associate_public_ip_address
+#   # network
+#   subnet_id                   = local.subnet_id
+#   vpc_security_group_ids      = [ aws_security_group.this.id ]
+#   associate_public_ip_address = var.associate_public_ip_address
 
+#   tags = module.label.tags
+# }
+
+resource "aws_launch_template" "bugecord" {
+  name = "${var.name}-bugecord"
+  block_device_mappings {
+    device_name = "/dev/sda1"
+    ebs {
+      volume_size = 8
+    }
+  }
+  iam_instance_profile {
+    name = aws_iam_instance_profile.mc.id
+  }
+  image_id =  var.ami != "" ? var.ami : data.aws_ami.ubuntu.image_id
+  instance_market_options {
+    market_type = "spot"
+    spot_options {
+      max_price = "1.00"
+      spot_instance_type = "one-time"
+    }
+  }
+  instance_type = var.instance_type
+  key_name = local._ssh_key_name
+  network_interfaces {
+    associate_public_ip_address = true
+    delete_on_termination = true
+    device_index = 0
+    security_groups = [ aws_security_group.this.id ]
+    subnet_id = local.subnet_id
+  }
   tags = module.label.tags
+  user_data = base64encode(join("\n", [
+    templatefile("${path.module}/user_data_bungecord.tpl", {
+      tpl_eip            = aws_eip.this.public_ip
+      tpl_eip_id         = aws_eip.this.id
+      tpl_region         = local.region
+      tpl_java_mx_mem    = var.java_mx_mem
+      tpl_java_ms_mem    = var.java_ms_mem
+    }
+    )
+  ]))
+      # tpl_mc_root        = var.mc_root
+      # tpl_mc_bucket      = local.bucket
+      # tpl_mc_backup_freq = var.mc_backup_freq
+      # tpl_mc_version     = var.mc_version
+      # tpl_mc_type        = var.mc_type     
+  //filebase64("${path.module}/user_data_bungecord.sh")
 }
 
+resource "aws_autoscaling_group" "bugecord" {
+  #availability_zones = [local.availability_zone]
+  default_cooldown = 10
+  desired_capacity   = 0
+  health_check_type  = "EC2"
+  health_check_grace_period = 30 
+  max_size           = 1
+  min_size           = 0
+  name  = "${var.name}-bugecord-asg"
+  instance_refresh {
+    preferences {
+      min_healthy_percentage = 0
+    } 
+    strategy = "Rolling"
+    triggers = ["launch_template"]
+  }
+  launch_template {
+    id      = aws_launch_template.bugecord.id
+    version = "$Latest"
+  }
+  vpc_zone_identifier = [ local.subnet_id ]
+  #tag  = tolist(module.label.tags)
+}
+
+
+# # ssd
+# resource "aws_volume_attachment" "this" {
+#   device_name = "/dev/sdf"
+#   volume_id   = "vol-05ff074874ff7b859"
+#   instance_id = module.ec2_minecraft.id
+# }
+
+# # static ip 
+resource "aws_eip" "this" {
+  vpc  = true
+  tags = module.label.tags
+}
