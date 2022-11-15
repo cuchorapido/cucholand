@@ -4,13 +4,14 @@
 # This supports Ubuntu and Amazon Linux 2 flavors of Linux (maybe/probably others but not tested).
 
 #exec > >(tee /var/log/tf-user-data.log|logger -t user-data) 2>&1
-#set -x
+set -x
 
 readonly JAVA_MX_MEM=${tpl_java_mx_mem}
 readonly JAVA_MS_MEM=${tpl_java_ms_mem}
 readonly REGION=${tpl_region}
 readonly STATIC_IP=${tpl_eip}
 readonly STATIC_IP_ID=${tpl_eip_id}
+readonly VOLUME_ID=${tpl_volume_id}
 
 # Determine linux distro
 if [ -f /etc/os-release ]; then
@@ -66,8 +67,10 @@ __UPG__
 
 }
 
-
 ubuntu_linux_setup
+
+# remove last sshd login
+sudo sed -i 's;#PrintLastLog yes;PrintLastLog no;g' /etc/ssh/sshd_config
 
 HOME=/home/ubuntu
 
@@ -79,6 +82,15 @@ else
     aws ec2 wait instance-running --instance-id=$INSTANCE_ID --region "$REGION"
     aws ec2 associate-address --instance-id=$INSTANCE_ID --allocation-id=$STATIC_IP_ID --allow-reassociation --region "$REGION" 
     PUBLIC_IP=$STATIC_IP
+fi
+
+
+echo "Waiting for $${VOLUME_ID} to become avaialble..."
+aws ec2 wait volume-available --volume-ids $VOLUME_ID --region $REGION
+echo "$${VOLUME_ID} is now avaialble, mounting it now..."
+
+if ! aws ec2 attach-volume --volume-id $VOLUME_ID --instance-id $INSTANCE_ID --device /dev/sdf --region $REGION && sleep 5; then
+    echo $?
 fi
 
 

@@ -129,3 +129,7 @@ variable "allowed_cidrs" {
   default     = "0.0.0.0/0"
 }
 
+variable "volume_id"{
+  type = string
+  default = "vol-05ff074874ff7b859"
+}

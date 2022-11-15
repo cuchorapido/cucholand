@@ -15,6 +15,7 @@ data "aws_subnets" "default" {
 data "aws_caller_identity" "aws" {}
 
 locals {
+  aws_account_id = data.aws_vpc.default.owner_id
   vpc_id    = length(var.vpc_id) > 0 ? var.vpc_id : data.aws_vpc.default.id
   subnet_id = length(var.subnet_id) > 0 ? var.subnet_id : sort(data.aws_subnets.default.ids)[0]
   tf_tags = {
@@ -131,7 +132,7 @@ resource "aws_iam_instance_profile" "mc" {
 }
 
 resource "aws_iam_role_policy" "mc_allow_ec2_to_s3" {
-  name   = "${module.label.id}-allow-ec2-to-s3"
+  name   = "${module.label.id}-ec2-ebs-eip"
   role   = aws_iam_role.allow_s3.id
   policy = <<EOF
 {
@@ -173,6 +174,68 @@ resource "aws_iam_role_policy" "mc_allow_ec2_to_s3" {
   ]
 }
 EOF
+}
+
+# additional volume policies 
+resource "aws_iam_role_policy" "additional_volumes" {
+  name       = "${var.name}-additional-volumes-policy"
+  policy     = data.aws_iam_policy_document.additional_volumes.json
+  role       = aws_iam_role.allow_s3.id
+}
+
+data "aws_iam_policy_document" "additional_volumes" {
+  statement {
+    sid    = "AllowVolumeDescribe"
+    effect = "Allow"
+
+    actions = [
+        "ec2:DescribeVolumes",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeInstances"
+    ]
+
+    resources = ["*"]
+  }
+
+   statement {
+    sid    = "AttachDetachEBSVolumes"
+    effect = "Allow"
+
+    actions = [
+      "ec2:AttachVolume",
+      "ec2:DetachVolume",
+    ]
+
+    resources = ["*"]
+    # concat(
+    #   [
+    #     "arn:aws:ec2:${local.region}:${local.aws_account_id}:instance/*"
+    #   ],
+    #   [ 
+    #     "arn:aws:ec2:${local.region}:${local.aws_account_id}:volume/${var.volume_id}" 
+    #   ]
+    # )
+    # condition {
+    #   test     = "ForAnyValue:StringEquals"
+    #   variable = "aws:ResourceTag/Service"
+    #   values   = [
+    #     var.name
+    #   ]
+    # }
+  }
+
+  statement {
+    sid    = "ASGInstaceRecycle"
+    effect = "Allow"
+
+    actions = [
+      "autoscaling:SetInstanceHealth"
+    ]
+
+    resources = [ 
+      aws_autoscaling_group.bugecord.arn 
+    ]
+  }
 }
 
 # // Script to configure the server - this is where most of the magic occurs!
@@ -263,7 +326,6 @@ locals {
 # }
 
 resource "aws_launch_template" "bugecord" {
-  name = "${var.name}-bugecord"
   block_device_mappings {
     device_name = "/dev/sda1"
     ebs {
@@ -283,6 +345,7 @@ resource "aws_launch_template" "bugecord" {
   }
   instance_type = var.instance_type
   key_name = local._ssh_key_name
+  name_prefix = var.name
   network_interfaces {
     associate_public_ip_address = true
     delete_on_termination = true
@@ -298,6 +361,7 @@ resource "aws_launch_template" "bugecord" {
       tpl_region         = local.region
       tpl_java_mx_mem    = var.java_mx_mem
       tpl_java_ms_mem    = var.java_ms_mem
+      tpl_volume_id      = var.volume_id
     }
     )
   ]))
@@ -312,11 +376,11 @@ resource "aws_launch_template" "bugecord" {
 resource "aws_autoscaling_group" "bugecord" {
   #availability_zones = [local.availability_zone]
   default_cooldown = 10
-  desired_capacity   = 0
+  desired_capacity   = 1
   health_check_type  = "EC2"
   health_check_grace_period = 30 
   max_size           = 1
-  min_size           = 0
+  min_size           = 1
   name  = "${var.name}-bugecord-asg"
   instance_refresh {
     preferences {
@@ -327,7 +391,7 @@ resource "aws_autoscaling_group" "bugecord" {
   }
   launch_template {
     id      = aws_launch_template.bugecord.id
-    version = "$Latest"
+    version = aws_launch_template.bugecord.latest_version
   }
   vpc_zone_identifier = [ local.subnet_id ]
   #tag  = tolist(module.label.tags)
