@@ -90,37 +90,7 @@ exit 0
 
 }
 
-# Update OS and install start script
-amazon_linux_setup() {
-    export SSH_USER="ec2-user"
-    /usr/bin/yum install java-1.8.0 yum-cron wget awscli jq -y
-    /bin/sed -i -e 's/update_cmd = default/update_cmd = security/'\
-                -e 's/apply_updates = no/apply_updates = yes/'\
-                -e 's/emit_via = stdio/emit_via = email/' /etc/yum/yum-cron.conf
-    chkconfig yum-cron on
-    service yum-cron start
-    /usr/bin/yum upgrade -y
-
-    cat <<SYSTEMD > /etc/systemd/system/minecraft.service
-[Unit]
-Description=Minecraft Server
-After=network.target
-
-[Service]
-Type=simple
-User=$SSH_USER
-WorkingDirectory=${mc_root}
-ExecStart=/usr/bin/java -Xmx${java_mx_mem} -Xms${java_ms_mem} -jar $MINECRAFT_JAR nogui
-Restart=on-abort
-
-[Install]
-WantedBy=multi-user.target
-SYSTEMD
-
-  # Start on boot
-  /usr/bin/systemctl enable minecraft
-
-}
+# 
 
 ### Thanks to https://github.com/kenoir for pointing out that as of v15 (?) we have to
 ### use the Mojang version_manifest.json to find java download location
@@ -147,6 +117,7 @@ download_minecraft_server() {
   $WGET -O ${mc_root}/$MINECRAFT_JAR $SERVER_URL
   
   #mc_root=/home/mc
+  
 }
 
 MINECRAFT_JAR="minecraft_server.jar"
