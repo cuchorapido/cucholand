@@ -7,7 +7,7 @@ provider "aws" {
 module "minecraft" {
   source = "../../"
 
-  name                     = "pepitoland"
+  name                     = "cucholand"
   namespace                = "cuchorapido"
   environment              = "prod"
   bucket_object_versioning = false
