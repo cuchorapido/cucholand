@@ -16,7 +16,7 @@ module "minecraft" {
   mc_port        = 25565
   mc_root        = "/home/mc"
   mc_version     = "1.18.2"
-  mc_backup_freq = 10
+  mc_backup_freq = 30
 
   java_ms_mem = "4G"
   java_mx_mem = "8G"

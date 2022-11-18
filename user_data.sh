@@ -6,6 +6,9 @@
 #exec > >(tee /var/log/tf-user-data.log|logger -t user-data) 2>&1
 set -x
 
+
+
+
 # Determine linux distro
 if [ -f /etc/os-release ]; then
     # freedesktop.org and systemd
@@ -40,6 +43,8 @@ else
     VER=$(uname -r)
 fi
 
+export MINECRAFT_JAR="minecraft_server.jar"
+
 # Update OS and install start script
 ubuntu_linux_setup() {
   export SSH_USER="ubuntu"
@@ -53,40 +58,23 @@ APT::Periodic::AutocleanInterval "7";
 APT::Periodic::Unattended-Upgrade "1";
 __UPG__
 
-  # Init script for starting, stopping
+# hacer que arranque automaticamente el servicio de mc en vez de hacerlo manual
 echo '
-#!/bin/bash
-# Short-Description: Minecraft server
+[Unit] 
+  Description=Minecraft Server
+  After=network-online.target 
 
-start() {
-  echo "comenzar el servidor de minecraft /home/mc..."
-  start-stop-daemon --start --quiet  --pidfile ${mc_root}/minecraft.pid -m -b -c $SSH_USER -d ${mc_root} --exec /usr/bin/java -- -Xmx${java_mx_mem} -Xms${java_ms_mem} -jar $MINECRAFT_JAR nogui
-}
+[Service] 
+  User=ubuntu 
+  WorkingDirectory=/home/mc
+  ExecStart=/usr/bin/java -Xmx${java_mx_mem} -Xms${java_ms_mem} -jar  minecraft_server.jar nogui
+  Restart=always 
+  RestartSec=3 
+  LimitNOFILE=8192
 
-stop() {
-  echo "Parar servidor de minecraft..."
-  start-stop-daemon --stop --pidfile ${mc_root}/minecraft.pid
-}
-
-case \$1 in
-  start)
-    start
-    ;;
-  stop)
-    stop
-    ;;
-  restart)
-    stop
-    sleep 5
-    start
-    ;;
-esac
-exit 0
-' | tee -a /etc/init.d/minecraft
-
-  # Start up on reboot
-  /bin/chmod +x /etc/init.d/minecraft
-  /usr/sbin/update-rc.d minecraft defaults
+[Install] 
+  WantedBy=multi-user.target
+' | sudo tee -a /etc/systemd/system/minecraft.service
 
 }
 
@@ -120,18 +108,48 @@ download_minecraft_server() {
   
 }
 
-MINECRAFT_JAR="minecraft_server.jar"
+
 case $OS in
   Ubuntu*)
     ubuntu_linux_setup
-    ;;
-  Amazon*)
-    amazon_linux_setup
     ;;
   *)
     echo "$PROG: unsupported OS $OS"
     exit 1
 esac
+
+# agregale un hostname al ip del server ex. cucholand.lxhxr.com
+HOSTED_ZONE_ID=ZFMV5BE45DZ2G # este es el hosted zone id de lxhxr.com
+SUBDOMAIN=cucholand.lxhxr.com
+PUBLIC_IP_ADDRESS=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
+
+# agregale un hostname al ip del server ex. cucholand.lxhxr.com
+HOSTED_ZONE_ID=ZFMV5BE45DZ2G # este es el hosted zone id de lxhxr.com
+SUBDOMAIN=cucholand.lxhxr.com
+PUBLIC_IP_ADDRESS=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
+
+echo '{
+    "Comment": "Update record to reflect new IP address for a system ",
+    "Changes": [
+        {
+            "Action": "UPSERT",
+            "ResourceRecordSet": {
+                "Name": "'$SUBDOMAIN'",
+                "Type": "A",
+                "TTL": 60,
+                "ResourceRecords": [
+                    {
+                        "Value": "'$PUBLIC_IP_ADDRESS'"
+                    }
+                ]
+            }
+        }
+    ]
+}' > record.json
+
+aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID --change-batch file:///record.json
+
+
 
 # Create mc dir, sync S3 to it and download mc if not already there (from S3)
 /bin/mkdir -p ${mc_root}
@@ -162,26 +180,39 @@ EULA
 # Not root
 /bin/chown -R $SSH_USER ${mc_root}
 
-# Start the server
-case $OS in
-  Ubuntu*)
-    /etc/init.d/minecraft start
-    ;;
-  Amazon*)
-    /usr/bin/systemctl start minecraft
-    ;;
-esac
+
+### customizacion del nuestro server ###
+
+
+
+
+sudo systemctl enable minecraft.service
+sudo service minecraft start
+#TODO: arreglar esta chimbada
+# automaticamente cuadrar el online-mode a false en los server.properties en /home/mc para que 
+# los usuarios que no tienen premium se puedan conectar.
+sed -i 's;online-mode=true;online-mode=false;g' /home/mc/server.properties
+
+# allow-flight=true en el server.properties para que la gente pueda volar en el mapa
+sed -i 's;allow-flight=false;allow-flight=true;g'  /home/mc/server.properties
+
+# difficulty=hard (de easy) en el server.properties
+sed -i 's;difficulty=easy;difficulty=hard;g' /home/mc/server.properties
+
+sudo service minecraft restart
+
+
 
 exit 0
 
+# para leer el log de todo lo de este archivo, se puede ver aqui
+# cat /var/log/cloud-init-output.log
 
+# para leer el log en vivo siempre y cuando este corriendo
+# tail -f /var/log/cloud-init-output.log
 
-
+# java -Xmx8G -Xms4G -jar minecraft_server.jar nogui
 # TODO: 
-# automaticamente cuadrar el online-mode a false en los server.properties en /home/mc
-# hacer que arranque automaticamente el servicio de mc en vez de hacerlo manual
 # poner una ip estatica del server
-# agregale un hostname al ip del server ex. cucholand.lxhxr.com
-# allow-flight=true en el server.properties
-# difficulty=hard (de easy) en el server.properties
 # poner whitelist para los activetes
+# agergar tarea que limpie las versiones de backup y que deje solamente las ultimas 
