@@ -118,10 +118,7 @@ case $OS in
     exit 1
 esac
 
-# agregale un hostname al ip del server ex. cucholand.lxhxr.com
-HOSTED_ZONE_ID=ZFMV5BE45DZ2G # este es el hosted zone id de lxhxr.com
-SUBDOMAIN=cucholand.lxhxr.com
-PUBLIC_IP_ADDRESS=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
+sudo snap install amazon-ssm-agent --classic
 
 # agregale un hostname al ip del server ex. cucholand.lxhxr.com
 HOSTED_ZONE_ID=ZFMV5BE45DZ2G # este es el hosted zone id de lxhxr.com

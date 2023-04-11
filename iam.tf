@@ -18,6 +18,11 @@ resource "aws_iam_role" "allow_s3_route53" {
 EOF
 }
 
+resource "aws_iam_role_policy_attachment" "system_manager" {
+  role       = aws_iam_role.allow_s3_route53.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "mc" {
   name = "${module.label.id}-instance-profile"
   role = aws_iam_role.allow_s3_route53.name

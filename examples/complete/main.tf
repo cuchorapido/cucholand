@@ -10,7 +10,7 @@ module "minecraft" {
   name                     = "cucholand"
   namespace                = "cuchorapido"
   environment              = "prod"
-  bucket_object_versioning = false
+  bucket_object_versioning = true
   instance_type            = "t2.xlarge"
 
   mc_port        = 25565
