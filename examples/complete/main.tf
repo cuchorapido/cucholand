@@ -10,6 +10,7 @@ module "minecraft" {
   name                     = "cucholand"
   namespace                = "cuchorapido"
   environment              = "prod"
+  bucket_name              = "prod-cucholand-9ajw1ous5m3c"
   bucket_object_versioning = true
   instance_type            = "t2.xlarge"
 

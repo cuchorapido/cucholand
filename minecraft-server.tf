@@ -15,6 +15,10 @@ module "ec2_minecraft" {
   vpc_security_group_ids      = [ aws_security_group.this.id ]
   associate_public_ip_address = var.associate_public_ip_address
 
+  # spot
+  create_spot_instance = true
+  spot_price           = "0.60"
+  spot_type            = "persistent"
   tags = module.label.tags
 }
 

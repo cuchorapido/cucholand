@@ -1,7 +1,7 @@
 // Security group for our instance - allows SSH and minecraft 
 resource "aws_security_group" "this" {
   name        = "${var.name}-ec2"
-  description = "Allow SSH and TCP ${var.mc_port}"
+  description = "Allow SSH, ${var.mc_port}, http"
   vpc_id      = local.vpc_id
 
   ingress {
@@ -19,6 +19,20 @@ resource "aws_security_group" "this" {
     cidr_blocks      = [ var.allowed_cidrs ]
   }
 
+  ingress {
+    description      = "http"
+    from_port        = 80
+    to_port          = 80
+    protocol         = "tcp"
+    cidr_blocks      = [ var.allowed_cidrs ]
+  }
+  ingress {
+    description      = "migracion"
+    from_port        = 3000
+    to_port          = 3000
+    protocol         = "tcp"
+    cidr_blocks      = [ var.allowed_cidrs ]
+  }
   egress {
     from_port        = 0
     to_port          = 0
